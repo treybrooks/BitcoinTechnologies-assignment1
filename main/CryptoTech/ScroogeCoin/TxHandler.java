@@ -27,17 +27,13 @@ public class TxHandler {
      *     values; and false otherwise.
      */
     public boolean isValidTx(Transaction tx) {
-        byte[] txHash = tx.getHash();
-        ArrayList<Transaction.Input> inputs = tx.getInputs();
-        ArrayList<Transaction.Output> outputs = tx.getOutputs();
-
         //1 all outputs claimed by {@code tx} are in the current UTXO pool
         // for(int i = 0; i < tx.numOutputs(); i++) {
         //     if(!this.uPool.contains(new UTXO(txHash, i))) {
         //         return false;
         //     }
         // }
-        for(Transaction.Input in : inputs) {
+        for(Transaction.Input in : tx.getInputs()) {
             UTXO utxo = new UTXO(in.prevTxHash, in.outputIndex);
             if(!this.uPool.contains(utxo)) {
                 return false;
@@ -45,7 +41,8 @@ public class TxHandler {
         }
 
         //2 the signatures on each input of {@code tx} are valid
-        for(Transaction.Input in : inputs) {
+        for(int i = 0; i < tx.numInputs(); i++) {
+            Transaction.Input in = tx.getInput(i);
             UTXO prevUXTO = new UTXO(in.prevTxHash, in.outputIndex);
             if(!this.uPool.contains(prevUXTO)) {
                 return false;
@@ -54,7 +51,7 @@ public class TxHandler {
             Transaction.Output spentOutput = uPool.getTxOutput(prevUXTO);
             PublicKey pk = spentOutput.address;
 
-            byte[] msg = tx.getRawDataToSign(in.outputIndex);
+            byte[] msg = tx.getRawDataToSign(i);
             if (msg == null) return false;  // Prevent null issues before verification
             
             byte[] signature = in.signature;
@@ -73,7 +70,7 @@ public class TxHandler {
         //3 no UTXO is claimed multiple times by {@code tx},
         Set<UTXO> seenUTXOs = new HashSet<>();
         // for (UTXO utxo : uPool.getAllUTXO()) {
-        for (Transaction.Input in : inputs) {
+        for (Transaction.Input in : tx.getInputs()) {
             UTXO utxo = new UTXO(in.prevTxHash, in.outputIndex);
             if (!seenUTXOs.add(utxo)) {
                 return false;
@@ -81,7 +78,7 @@ public class TxHandler {
         }
 
         //4 all of {@code tx}s output values are non-negative, and
-        for(Transaction.Output out : outputs) {
+        for(Transaction.Output out : tx.getOutputs()) {
             if(out.value < 0) {
                 return false;
             }
@@ -93,12 +90,12 @@ public class TxHandler {
         double sumOut = 0;
         double spentOutValue = 0;
 
-        for(Transaction.Input in : inputs) {
+        for(Transaction.Input in : tx.getInputs()) {
             UTXO utxo = new UTXO(in.prevTxHash, in.outputIndex);
             spentOutValue = uPool.getTxOutput(utxo).value;
             sumIn += spentOutValue;
         }
-        for(Transaction.Output out : outputs) {
+        for(Transaction.Output out : tx.getOutputs()) {
             sumOut += out.value;
         }
         if(sumIn < sumOut) {

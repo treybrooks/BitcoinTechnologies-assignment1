@@ -1,4 +1,4 @@
-package ScroogeCoin;
+package CryptoTech.ScroogeCoin;
 import java.security.PublicKey;
 import java.util.ArrayList;
 import java.util.HashSet;

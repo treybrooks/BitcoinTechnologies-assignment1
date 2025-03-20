@@ -1,6 +1,6 @@
 // Copyright (C) 2016-2017 Enrique Albertos
 // Distributed under the GNU GPL v2 software license
-package ScroogeCoin;
+package CryptoTech.ScroogeCoin;
 
 import java.util.ArrayList;
 import java.util.Collections;

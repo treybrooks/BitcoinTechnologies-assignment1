@@ -1,4 +1,4 @@
-package ScroogeCoin;
+package CryptoTech.ScroogeCoin;
 import java.math.BigInteger;
 import java.security.*;
  

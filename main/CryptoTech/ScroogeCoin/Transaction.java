@@ -1,4 +1,4 @@
-package ScroogeCoin;
+package CryptoTech.ScroogeCoin;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;

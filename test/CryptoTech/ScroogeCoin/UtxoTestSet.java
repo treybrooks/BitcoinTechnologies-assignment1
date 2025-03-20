@@ -1,4 +1,4 @@
-package ScroogeCoin;
+package CryptoTech.ScroogeCoin;
 
 import java.security.InvalidKeyException;
 import java.security.KeyPair;

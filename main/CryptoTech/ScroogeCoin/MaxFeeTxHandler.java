@@ -1,9 +1,6 @@
 package CryptoTech.ScroogeCoin;
 import java.security.PublicKey;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Set;
-
+import java.util.*;
 
 public class TxHandler {
 
@@ -106,66 +103,85 @@ public class TxHandler {
         return true;
     }
 
-    /**
-     * Handles each epoch by receiving an unordered array of proposed transactions, checking each
-     * transaction for correctness, returning a mutually valid array of accepted transactions, and
-     * updating the current UTXO pool as appropriate.
-     */
     public Transaction[] handleTxs(Transaction[] possibleTxs) {
-        ArrayList<Transaction> validTxs = new ArrayList<>();
+        // Create a list to store all valid transactions
+        List<Transaction> validTxs = new ArrayList<>();
         
-        // Keep track of which UTXOs have been spent in this batch
-        HashSet<UTXO> currentlySpentUTXOs = new HashSet<>();
+        // Create a map to store each transaction's fee
+        Map<Transaction, Double> txFees = new HashMap<>();
         
-        // Process all transactions in multiple passes
-        boolean changesMade;
-        do {
-            changesMade = false;
-            
-            for (Transaction tx : possibleTxs) {
-                // Skip transactions we've already processed
-                if (validTxs.contains(tx)) continue;
+        // Create a copy of the UTXO pool to work with
+        UTXOPool poolCopy = new UTXOPool(this.uPool);
+        
+        // First, calculate the fee for each transaction and check initial validity
+        for (Transaction tx : possibleTxs) {
+            if (isValidTx(tx)) {
+                double inputSum = 0;
+                double outputSum = 0;
                 
-                boolean isValid = true;
-                HashSet<UTXO> txSpends = new HashSet<>();
-                
-                // Check each input to see if it's still available
+                // Calculate total input value
                 for (Transaction.Input input : tx.getInputs()) {
                     UTXO utxo = new UTXO(input.prevTxHash, input.outputIndex);
-                    
-                    // If UTXO is not in pool or already spent in this batch, tx is invalid
-                    if (!uPool.contains(utxo) || currentlySpentUTXOs.contains(utxo)) {
-                        isValid = false;
-                        break;
+                    if (poolCopy.contains(utxo)) {
+                        inputSum += poolCopy.getTxOutput(utxo).value;
                     }
-                    
-                    txSpends.add(utxo);
                 }
                 
-                // If transaction is valid, add it to our results
-                if (isValid && isValidTx(tx)) {
-                    validTxs.add(tx);
-                    
-                    // Mark these UTXOs as spent for this processing batch
-                    currentlySpentUTXOs.addAll(txSpends);
-                    
-                    // Remove spent UTXOs from the pool
-                    for (UTXO utxo : txSpends) {
-                        uPool.removeUTXO(utxo);
-                    }
-                    
-                    // Add new UTXOs for this transaction's outputs
-                    byte[] txHash = tx.getHash();
-                    for (int i = 0; i < tx.numOutputs(); i++) {
-                        UTXO utxo = new UTXO(txHash, i);
-                        uPool.addUTXO(utxo, tx.getOutput(i));
-                    }
-                    
-                    changesMade = true;
+                // Calculate total output value
+                for (Transaction.Output output : tx.getOutputs()) {
+                    outputSum += output.value;
+                }
+                
+                double fee = inputSum - outputSum;
+                txFees.put(tx, fee);
+            }
+        }
+        
+        // Sort transactions by fee (highest fee first)
+        List<Transaction> sortedTxs = new ArrayList<>(txFees.keySet());
+        sortedTxs.sort((tx1, tx2) -> Double.compare(txFees.get(tx2), txFees.get(tx1)));
+        
+        // Create a map to track which UTXOs are consumed
+        Set<UTXO> usedUTXOs = new HashSet<>();
+        
+        // Process transactions in order of highest fee
+        for (Transaction tx : sortedTxs) {
+            boolean allInputsAvailable = true;
+            Set<UTXO> txUTXOs = new HashSet<>();
+            
+            // Check if all inputs are available
+            for (Transaction.Input input : tx.getInputs()) {
+                UTXO utxo = new UTXO(input.prevTxHash, input.outputIndex);
+                if (usedUTXOs.contains(utxo) || !poolCopy.contains(utxo)) {
+                    allInputsAvailable = false;
+                    break;
+                }
+                txUTXOs.add(utxo);
+            }
+            
+            // If transaction can be processed, add it to valid transactions
+            if (allInputsAvailable) {
+                validTxs.add(tx);
+                
+                // Mark UTXOs as used
+                usedUTXOs.addAll(txUTXOs);
+                
+                // Update the actual UTXO pool
+                for (UTXO utxo : txUTXOs) {
+                    uPool.removeUTXO(utxo);
+                }
+                
+                // Add new UTXOs for the outputs
+                byte[] txHash = tx.getHash();
+                for (int i = 0; i < tx.numOutputs(); i++) {
+                    UTXO utxo = new UTXO(txHash, i);
+                    uPool.addUTXO(utxo, tx.getOutput(i));
+                    poolCopy.addUTXO(utxo, tx.getOutput(i));
                 }
             }
-        } while (changesMade); // Keep processing until no more valid transactions are found
+        }
         
         return validTxs.toArray(new Transaction[validTxs.size()]);
     }
 }
+
